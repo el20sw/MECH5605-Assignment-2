@@ -6,12 +6,23 @@ This repository contains the code for the second assignment of the course MECH56
 
 ### Cloning the repository
 
-To clone the repository, run the following command in the terminal:
+To clone the repository, use the following command in your terminal:
 
 ```bash
-git clone
-
+git clone https://github.com/el20sw/MECH5605-Assignment-2.git
 ```
+
+## Structure
+The repository includes:
+- Code files: MATLAB scripts for classification and machine learning tasks
+- IMU Data: Revised IMU datasets for testing (modified file and directory names for ease of use)
+
+### Collaboration
+
+Please follow Git best practices:
+- **Branching**: Create seperate branches for adding new features and tasks
+- **Commits**: Write clear, descriptive commit messages summarising any changes
+- **Pull Requests**: We can try to use Pull Requests as a way of collaboration and ensuring changes are quality
 
 ## Task:
 
