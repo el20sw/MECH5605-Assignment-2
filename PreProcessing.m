@@ -28,33 +28,59 @@ end
 %%
 %[text] ## Removing Bad Columns from the Data
 %[text] What counts as a bad columns?
-%[text] - Zero Variance \- the column is consistently the same value, this suggests that something is wrong with it
-%[text] - Those with malformed column names \- we expect columns to be the timestamp (position name, i.e. Pelvis, Thigh\_L, etc.) and then the same but with a 1 to 9 suffix. Anything outside this pattern is to be discarded \
-%%
+%[text] - Columns that fall outside the expected column names \- i.e. aren't thigh, shank, foot, pelvis
+%[text] - Extra timestamp columns \- these have been visually identified through examination of the data and are being programatically removed \
+% removing columns not referencing one of the IMUs
 for i = 1:length(dataStruct)
     data = dataStruct(i).Data;
-    badColumns = var(data{:,:}) == 0;
-    cleanData = data(:, ~badColumns);
-    dataStruct(i).CleanData = cleanData;
-end
-%%
-% There should be 63 columns in the data -
-% if the column name is greater than 9, then it is not a valid column
-% find each column which is just the position and remove it
-for i = 1:length(dataStruct)
-    data = dataStruct(i).CleanData;
-    badColumns = true(1, width(data));
+    validColumns = true(1,width(data));
     for col = 1:width(data)
         colName = data.Properties.VariableNames{col};
-        % we get a match when the regex is correct - if the result is empty
-        % there was no match and the column is invalid, we inverse this to
-        % make it go to zero and from there it works
-        regexResult = isempty(regexp(colName, '^(Thigh|Shank|Foot|Pelvis)(_)?([L|R])?(_)?([1-9])?$', 'once'));
-        if regexResult
-            badColumns(col) = false;
+        result = isempty(regexp(colName, '^(Thigh|Shank|Foot|Pelvis)*', 'once'));
+        if result
+            validColumns(col) = false;
         end
     end
-    dataStruct(i).CleanData = data(:, badColumns);
+    dataStruct(i).CleanData = data(:, validColumns);
+end
+%%
+% handling extra columns - we should only have 1 timestamp column and 9
+% data columns
+for i = 1:length(dataStruct)
+    data = dataStruct(i).CleanData;
+    % find any bad columns - these are outside the identified naming structure
+    badColumns = false(1,width(data));
+    % find the timestamp columns
+    timestampColumns = false(1, width(data));
+    for col = 1:width(data)
+        colName = data.Properties.VariableNames{col};
+
+        isTimestamp = ~isempty(regexp(colName, '^(Thigh|Shank|Foot|Pelvis)(_)?([L|R])?$', 'once'));
+        if isTimestamp
+            timestampColumns(col) = true;
+        end
+    end
+
+    timestampIdx = find(timestampColumns);
+
+    % if the difference between each timestamp is greater than 10, then we remove the difference from after that timestamp
+    % this is because the timestamp is likely to be a bad column
+    if ~isempty(timestampIdx)
+        % get the index of the last piece of data and +1 to it for a pseudo-timestamp
+        timestampIdx = [timestampIdx (width(data) + 1)];
+        timestampIdxDiffs = diff(timestampIdx);
+        for j = 1:length(timestampIdxDiffs)
+            difference = timestampIdxDiffs(j);
+            if difference > 10
+                num_cols_to_remove = difference - 10;
+                idx = timestampIdx(j);
+                badColumns(idx+1:idx+num_cols_to_remove) = true;
+            end
+        end
+    end
+
+    % remove the badColumns from the data
+    dataStruct(i).CleanData = data(:, ~badColumns);
 end
 %%
 %[text] ## Handling NaN values
@@ -84,7 +110,7 @@ if ~nan_found
 end
 %%
 %[text] ## Calculating the sample rate of the data
-%[text] We have timestamps for each reading which can be used to get the sample rate of the data. The timestamps are on every 10th column
+%[text] We have timestamps for each reading which can be used to get the sample rate of the data.
 for i = 1:length(dataStruct)
     data = dataStruct(i).CleanData;
     timestampCols = false(1, width(data));
@@ -120,6 +146,14 @@ labelMap = containers.Map(activities, 1:numel(activities));
 for i = 1:length(dataStruct)
     activity = dataStruct(i).Activity;
     dataStruct(i).Label = labelMap(activity);
+end
+%%
+%[text] ## Verifying the Data
+%[text] The data should be 63 wide, and there should be 60 datasets
+assert(length(dataStruct) == 60);
+for i = 1:length(dataStruct)
+    data = dataStruct(i).CleanData;
+    assert(width(data) == 63);
 end
 %%
 %[text] # Saving the Data
