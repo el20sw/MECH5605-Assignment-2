@@ -1,7 +1,7 @@
 %[text] # Pre\-processing the Data
 %[text] ## Programatically importing the data
 %[text] Note: requires changing some file and directory names from the downloaded data to make it consistent and able to work with this script
-activities = {'normal_walk', 'ramp_asc', 'ramp_desc', 'sit_to_stand', 'stand_to_sit'};
+activities = {'level_ground_walking', 'ramp_asc', 'ramp_desc', 'sit_to_stand', 'stand_to_sit'};
 subjects = {'j', 'lg', 'rs', 'vr'};
 trials = {'01', '02', '03'};
 
@@ -70,7 +70,7 @@ for i = 1:length(dataStruct)
     timestamps = rawData(:, 1:10:end-10);
     time_diffs = diff(timestamps);
     avg_time_diff = mean(time_diffs, 'all');
-    dataStruct(i).SampleTime = avg_time_diff;
+    dataStruct(i).SampleTime = avg_time_diff.mean;
 end
 %%
 %[text] We have the sample rate for each dataset, so we can remove the timestamp columns as these are not required for the classification
