@@ -18,6 +18,7 @@ for i = 1:length(activities)
             if isfile(file_path)
                 rawData = readtable(file_path);
                 dataStruct(index).Activity = activity;
+                dataStruct(index).Subject = person;
                 dataStruct(index).FilePath = file_path;
                 dataStruct(index).Data = rawData;
                 index = index + 1;

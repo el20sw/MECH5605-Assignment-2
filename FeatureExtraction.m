@@ -16,7 +16,7 @@ for id_data = 1:length(dataStruct)
     samples_per_stride = round(delta_t_ms / sample_time_ms);
     
     num_samples = size(data, 1);
-    num_windows = floor((num_samples - samples_per_window) / samples_per_stride) + 1
+    num_windows = floor((num_samples - samples_per_window) / samples_per_stride) + 1;
     
     featureNames = {'max', 'min', 'mean', 'std', 'rms', 'max_gradient', 'zero_crossings'};
     num_features = length(featureNames);
@@ -70,5 +70,5 @@ save('preprocessed_with_features.mat', 'dataStruct');
 %[appendix]
 %---
 %[metadata:view]
-%   data: {"layout":"onright"}
+%   data: {"layout":"inline"}
 %---
