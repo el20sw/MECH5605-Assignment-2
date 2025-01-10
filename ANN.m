@@ -2,6 +2,7 @@ load preprocessed_with_features.mat
 
 % ToDo:
 % - get average accuracy from leaving out each subject
+% - note that this requires modification for leaving out each subject
 % - do some feature selection by randomly sampling from features and
 % measuring accuracy?
 % - find the 15 most useful features and report on these for the ANN
@@ -80,6 +81,7 @@ accuracy = sum(diag(cm))/sum(cm(:));
 plotconfusion(testTargets, predictedTargets); % may want to convert numeric to actual labels here
 figure
 plotperform(tr);
+disp(accuracy);
 %%
 % Brute Force Feature selection - create a struct with the feature name and the accuracy
 accuracies = struct('Feature', {}, 'Accuracy', {});
@@ -104,3 +106,28 @@ for i = 1:size(trainFeatures, 1)
     accuracies(i).Feature = headingNames{i};
     accuracies(i).Accuracy = accuracy;
 end
+%%
+% Try with standardised features
+% define and train the neural network
+trainFeatures = zscore(trainFeatures);
+testFeatures = zscore(testFeatures);
+
+net = patternnet(10);
+net.divideParam.trainRatio = 85/100;
+net.divideParam.valRatio = 15/100;
+net.divideParam.testRatio = 0/100;
+
+net.trainParam.showWindow = 0;
+[net, tr] = train(net, trainFeatures, trainTargets);
+
+% test the neural network
+predictedTargets = net(testFeatures);
+testPerformance = perform(net, testTargets, predictedTargets);
+view(net);
+figure
+[c, cm] = confusion(testTargets, predictedTargets);
+accuracy = sum(diag(cm))/sum(cm(:));
+plotconfusion(testTargets, predictedTargets); % may want to convert numeric to actual labels here
+figure
+plotperform(tr);
+disp(accuracy);
