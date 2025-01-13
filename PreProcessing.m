@@ -132,6 +132,8 @@ for i = 1:length(dataStruct)
 end
 %%
 %[text] ## Filtering the Data
+% Since typical gait data for normal walking has frequency components in the range of 0.5 to 3.5 Hz, 
+% a 10-th order 𝐵𝑢𝑡𝑡𝑒𝑟𝑤𝑜𝑟𝑡ℎ bandpass filter was used to extract the required frequency components from the resultant vectors of the IMUs
 %%
 %[text] ### Moving average filter
 window_size = 5;
