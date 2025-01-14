@@ -184,7 +184,6 @@ options = trainingOptions("sgdm", ...
     Plots="training-progress");
 
 % Train the CNN
-% net = trainNetwork(trainImages, trainLabels, layers, options);
 net = trainnet(trainImages, trainLabels, layers, "crossentropy", options);
 
 % Test the CNN
