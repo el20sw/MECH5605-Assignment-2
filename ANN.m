@@ -74,7 +74,7 @@ hyperparameters = [];
 % grid search for hyperparameters
 disp('Starting grid search for hyperparameters');
 disp(['Grid size: ', num2str(length(L1))]);
-hyperParametersResults = zeros(length(L1), 5);
+hyperparametersResults = zeros(length(L1), 5);
 parfor idx = 1:length(L1)
     layers = [L1(idx)];
     [net, tr] = trainNet(trainFeatures, trainTargets, layers);
@@ -87,7 +87,7 @@ disp('Finished 1 layer');
 disp('Starting 2 layer');
 combosTwo = length(L1)*length(L2);
 disp(['Grid size: ', num2str(combosTwo)]);
-hyperParametersResults = zeros(combosTwo, 5);
+hyperparametersResults = zeros(combosTwo, 5);
 parfor idx = 1:combosTwo
     [i, j] = ind2sub([length(L1),length(L2)], idx);
     layers = [L1(i),L2(j)];
@@ -137,14 +137,13 @@ save('ann_hyperparameters.mat', 'hyperparameters');
 load ann_hyperparameters.mat
 
 accuracies = hyperparameters(:, end);
-% accuracies = str2double(accuracies);
 [~, idx] = max(accuracies);
-
 bestHyperparameters = hyperparameters(idx, :);
 L1 = bestHyperparameters(1);
 L2 = bestHyperparameters(2);
 L3 = bestHyperparameters(3);
 LD = bestHyperparameters(4);
+bestAccuracy = bestHyperparameters(5);
 
 if isnan(L2)
     layers = L1;
