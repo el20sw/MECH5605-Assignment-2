@@ -33,104 +33,151 @@ headingNames = headingNames(~ismember(headingNames, {'Subject', 'Activity'}));
 
 % convert allFeatures into a matrix - for an SVM, columns are features and rows are samples
 allFeatures = table2array(allFeatures);
+allFeatures(:, end) = [];
 
-trainFeatures = allFeatures(trainIdx, 1:end-1);
+trainFeatures = allFeatures(trainIdx, 1:end);
 trainTargets = allTargets(trainIdx, :);
 trainTargets = categorical(trainTargets);
 
-testFeatures = allFeatures(testIdx, 1:end-1);
+testFeatures = allFeatures(testIdx, 1:end);
 testTargets = allTargets(testIdx, :);
 testTargets = categorical(testTargets);
-%%
-% Define and train the SVM - when using an rbf ensure "KernelScale" is set
-% to "auto".
 
-model = templateSVM("BoxConstraint", 1e6, "KernelFunction", "rbf", "KernelScale", "auto");
-svm = fitcecoc(trainFeatures, trainTargets, 'Learners', model);
-%%
-% Test the SVM
-predictions = predict(svm, testFeatures);
-accuracy = sum(predictions == testTargets)/length(testTargets);
-confusionchart(testTargets, predictions);
+data = array2table(allFeatures);
+data.Properties.VariableNames = headingNames;
+data.Activity = allTargets;
+data.Properties.VariableNames = [headingNames, {'Activity'}];
 
-disp(accuracy);
-disp(svm.CodingMatrix)
-%%
-% Trying with only the top 15 features selected in FeatureSelection.m
-load pca_data.mat
+trainFeatures = array2table(trainFeatures);
+trainFeatures.Properties.VariableNames = headingNames;
+trainFeatures.Activity = trainTargets;
+trainFeatures.Properties.VariableNames = [headingNames, {'Activity'}];
 
-% Split the data into training and testing sets
-trainFeatures = X_pca(trainIdx, :);
-trainTargets = Y(trainIdx);
-testFeatures = X_pca(testIdx, :);
-testTargets = Y(testIdx);
-%%
-% Define and train the SVM - when using an rbf ensure "KernelScale" is set
-% to "auto".
+% get a random sample for validation
+valSplit = 0.2;
+valIdx = rand(size(trainFeatures, 1), 1) < valSplit;
+valFeatures = trainFeatures(valIdx, :);
+valTargets = trainTargets(valIdx, :);
+valFeatures.Activity = [];
+valTargets = categorical(valTargets);
 
-model = templateSVM("BoxConstraint", 1e6, "KernelFunction", "rbf", "KernelScale", "auto");
-svm = fitcecoc(trainFeatures, trainTargets, 'Learners', model);
-%%
-% Test the SVM
-predictions = predict(svm, testFeatures);
-accuracy = sum(predictions == testTargets)/length(testTargets);
-confusionchart(testTargets, predictions);
+trainFeatures = trainFeatures(~valIdx, :);
+trainTargets = trainTargets(~valIdx, :);
 
-disp(accuracy);
-disp(svm.CodingMatrix)
+testFeatures = array2table(testFeatures);
+testFeatures.Properties.VariableNames = headingNames;
+testFeatures.Activity = testTargets;
+testFeatures.Properties.VariableNames = [headingNames, {'Activity'}];
 
+classNames = unique(data.Activity);
 %%
 % Grid search for SVM hyperparameter tuning - we care about the box constraint,
 % kernel function (and then polynomial order)
 
 % Define the hyperparameters to search over
-boxConstraint = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6];
-kernelFunction = {"linear", "polynomial", "rbf"};
-polynomialOrder = [2, 3, 4];
+boxConstraint = linspace(1e-3, 1e3, 11);
+kernelFunction = ["linear", "polynomial", "gaussian"];
+polynomialOrder = [2, 3];
+multiclassCoding = {'onevsone', 'onevsall'};
+standardiseData = ["on", "off"];
 
 % make note of the hyperparameters and the accuaracy they produce
 hyperparameters = [];
-bestAccuracy = 0;
+gridSize = length(standardiseData)*length(kernelFunction)* ...
+    length(polynomialOrder)*length(multiclassCoding)*length(boxConstraint);
+count = 0;
 
-for kFunc = kernelFunction
-    func = string(kFunc);
-    if strcmp(func, 'polynomial')
-        for order = polynomialOrder
-            for box = boxConstraint
-                model = templateSVM("BoxConstraint", box, "KernelFunction", func, "PolynomialOrder", order);
-                svm = fitcecoc(trainFeatures, trainTargets, 'Learners', model);
-                predictions = predict(svm, testFeatures);
-                accuracy = sum(predictions == testTargets)/length(testTargets);
-                fprintf('Box constraint: %.2f\n', box);
-                fprintf('Kernel function: %s\n', func);
-                fprintf('Polynomial order: %d\n', order);
-                fprintf('Accuracy: %.2f\n', accuracy);
-
-                if accuracy > bestAccuracy
-                    hyperparameters = [hyperparameters; [box, func, order, accuracy]];
+% create the grid to search over
+grid = [];
+for i = 1:length(standardiseData)
+    for j = 1:length(kernelFunction)
+        if kernelFunction(j) == "polynomial"
+            for k = 1:length(polynomialOrder)
+                for l = 1:length(multiclassCoding)
+                    for m = 1:length(boxConstraint)
+                        grid = [grid; [standardiseData(i), kernelFunction(j), polynomialOrder(k), multiclassCoding(l), boxConstraint(m)]];
+                    end
                 end
-
             end
-        end
-    else
-        for box = boxConstraint
-            model = templateSVM("BoxConstraint", box, "KernelFunction", func, "KernelScale", "auto");
-            svm = fitcecoc(trainFeatures, trainTargets, 'Learners', model);
-            predictions = predict(svm, testFeatures);
-            accuracy = sum(predictions == testTargets)/length(testTargets);
-            fprintf('Box constraint: %.2f\n', box);
-            fprintf('Kernel function: %s\n', func);
-            fprintf('Accuracy: %.2f\n', accuracy);
-
-            if accuracy > bestAccuracy
-                hyperparameters = [hyperparameters; [box, func, NaN, accuracy]];
+        else
+            for l = 1:length(multiclassCoding)
+                for m = 1:length(boxConstraint)
+                    grid = [grid; [standardiseData(i), kernelFunction(j), NaN, multiclassCoding(l), boxConstraint(m)]];
+                end
             end
         end
     end
 end
 %%
-hyperparameters_copy = hyperparameters;
-hyperparameters_copy = array2table(hyperparameters_copy);
-hyperparameters_copy.Properties.VariableNames = ["BoxConstraint", "KernelFunction", "PolynomialOrder", "Accuracy"];
-hyperparameters_copy = sortrows(hyperparameters_copy, 'Accuracy', 'descend');
-head(hyperparameters_copy);
+gridSize = size(grid, 1);
+hyperparameters = table('Size', [gridSize, 6], ...
+    'VariableTypes', {'double', 'string', 'double', 'string', 'string', 'double'}, ...
+    'VariableNames', {'BoxConstraint', 'KernelFunction', 'PolynomialOrder', 'Coding', 'StandardiseData', 'Accuracy'});
+
+fprintf('Starting grid search\n');
+parfor idx = 1:gridSize
+    row = grid(idx, :);
+    standardiseData = string(row(1));
+    kernelFunction = string(row(2));
+    order = double(row(3));
+    coding = string(row(4));
+    box = double(row(5));
+
+    if kernelFunction == "polynomial"
+        model = createTemplateSVM(box, kernelFunction, order, standardiseData);
+    else
+        model = createTemplateSVM(box, kernelFunction, [], standardiseData);
+    end
+
+    svm = fitcecoc(trainFeatures, 'Activity', ...
+        'Learners', model, ...
+        'Coding', coding, ...
+        'ClassNames', classNames);
+    predictions = predict(svm, valFeatures);
+    predictions = categorical(predictions);
+    accuracy = sum(predictions == valTargets)/length(valTargets);
+    params = {box, kernelFunction, order, coding, standardiseData, accuracy};
+    hyperparameters(idx, :) = params;
+
+    fprintf('Accuracy: %.2f\n', accuracy);
+end
+
+function model = createTemplateSVM(box, kernelFunction, order, standardiseData)
+    model = templateSVM(...
+        'KernelFunction', kernelFunction, ...
+        'PolynomialOrder', order, ...
+        'KernelScale', 'auto', ...
+        'BoxConstraint', box, ...
+        'Standardize', standardiseData);
+end
+
+save('svm_hyperparameters.mat', 'hyperparameters');
+%%
+% Find the best hyperparameters
+load svm_hyperparameters.mat
+
+% get the row with the highest accuracy
+[~, idx] = max(hyperparameters.Accuracy);
+bestHyperparameters = hyperparameters(idx, :);
+box = bestHyperparameters.BoxConstraint;
+kernelFunction = bestHyperparameters.KernelFunction;
+% order may be NaN, so we need to check
+if isnan(double(bestHyperparameters.PolynomialOrder))
+    order = [];
+else
+    order = bestHyperparameters.PolynomialOrder;
+end
+coding = bestHyperparameters.Coding;
+standardiseData = bestHyperparameters.StandardiseData;
+
+model = createTemplateSVM(box, kernelFunction, order, standardiseData);
+svm = fitcecoc(trainFeatures, 'Activity', ...
+    'Learners', model, ...
+    'Coding', coding, ...
+    'ClassNames', classNames);
+predictions = predict(svm, testFeatures);
+predictions = categorical(predictions);
+accuracy = sum(predictions == testTargets)/length(testTargets);
+fprintf("Accuracy: %.2f\n", accuracy);
+confusionchart(testTargets, predictions);
+disp(svm.CodingMatrix)
