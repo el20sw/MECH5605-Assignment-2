@@ -43,7 +43,6 @@ testFeatures = allFeatures(testIdx, 1:end);
 testTargets = allTargets(testIdx, :);
 testTargets = categorical(testTargets);
 
-%%
 data = array2table(allFeatures);
 data.Properties.VariableNames = headingNames;
 data.Activity = allTargets;
@@ -111,15 +110,18 @@ for i = 1:length(standardiseData)
 end
 %%
 gridSize = size(grid, 1);
-hyperparameters = zeros(gridSize, 6);
+hyperparameters = table('Size', [gridSize, 6], ...
+    'VariableTypes', {'double', 'string', 'double', 'string', 'string', 'double'}, ...
+    'VariableNames', {'BoxConstraint', 'KernelFunction', 'PolynomialOrder', 'Coding', 'StandardiseData', 'Accuracy'});
 
 fprintf('Starting grid search\n');
 parfor idx = 1:gridSize
-    standardiseData = grid(idx, 1);
-    kernelFunction = grid(idx, 2);
-    order = str2double(grid(idx, 3));
-    coding = grid(idx, 4);
-    box = str2double(grid(idx, 5));
+    row = grid(idx, :);
+    standardiseData = string(row(1));
+    kernelFunction = string(row(2));
+    order = double(row(3));
+    coding = string(row(4));
+    box = double(row(5));
 
     if kernelFunction == "polynomial"
         model = createTemplateSVM(box, kernelFunction, order, standardiseData);
@@ -134,11 +136,10 @@ parfor idx = 1:gridSize
     predictions = predict(svm, valFeatures);
     predictions = categorical(predictions);
     accuracy = sum(predictions == valTargets)/length(valTargets);
-    params = [box, kernelFunction, order, coding, standardiseData, accuracy];
+    params = {box, kernelFunction, order, coding, standardiseData, accuracy};
     hyperparameters(idx, :) = params;
 
-    disp(['Training network ', num2str(idx), ' of ', num2str(gridSize), ...
-          ' | Accuracy=', num2str(accuracy)]);
+    fprintf('Accuracy: %.2f\n', accuracy);
 end
 
 function model = createTemplateSVM(box, kernelFunction, order, standardiseData)
@@ -155,21 +156,19 @@ save('svm_hyperparameters.mat', 'hyperparameters');
 % Find the best hyperparameters
 load svm_hyperparameters.mat
 
-accuracies = hyperparameters(:, end);
-accuracies = str2double(accuracies);
-[~, idx] = max(accuracies);
-
+% get the row with the highest accuracy
+[~, idx] = max(hyperparameters.Accuracy);
 bestHyperparameters = hyperparameters(idx, :);
-box = str2double(bestHyperparameters(1));
-kernelFunction = bestHyperparameters(2);
+box = bestHyperparameters.BoxConstraint;
+kernelFunction = bestHyperparameters.KernelFunction;
 % order may be NaN, so we need to check
-if isnan(double(bestHyperparameters(3)))
+if isnan(double(bestHyperparameters.PolynomialOrder))
     order = [];
 else
-    order = str2double(bestHyperparameters(3));
+    order = bestHyperparameters.PolynomialOrder;
 end
-coding = bestHyperparameters(4);
-standardiseData = bestHyperparameters(5);
+coding = bestHyperparameters.Coding;
+standardiseData = bestHyperparameters.StandardiseData;
 
 model = createTemplateSVM(box, kernelFunction, order, standardiseData);
 svm = fitcecoc(trainFeatures, 'Activity', ...
