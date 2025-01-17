@@ -1,4 +1,4 @@
-load preprocessed_with_features.mat
+ load preprocessed_with_features.mat
 
 allFeatures = [];
 
@@ -16,13 +16,10 @@ end
 %%
 % split the data into training and testing sets
 % using leave one subject out for testing
-
-% first we need to convert the subjects into a numerical representation
 allFeatures.Subject = grp2idx(allFeatures.Subject);
 subject = randsample(uniqueSubjects, 1);
 testIdx = allFeatures.Subject == subject;
 trainIdx = ~testIdx;
-
 classNames = unique(allFeatures.Activity);
 
 % extract the targets and remove from the features
@@ -45,7 +42,7 @@ testFeatures = allFeatures(testIdx, 1:end)';
 testTargets = allTargets(testIdx, :);
 testTargets = onehotencode(categorical(testTargets), 2)';
 %%
-% Baseline test model
+% Baseline model - sanity check
 net = patternnet(10);
 net.divideParam.trainRatio = 85/100;
 net.divideParam.valRatio = 15/100;
@@ -65,52 +62,58 @@ plotperform(tr);
 disp(accuracy);
 %%
 % Define hyperparameters to search over
-hiddenLayer1Size = 1:50:500;
-hiddenLayer2Size = 1:50:500;
-hiddenLayerDepth = [1, 2];
+L1 = 1:5:50;    % hidden layer 1 size
+L2 = 1:5:50;    % hidden layer 2 size
+L3 = 1:5:50;    % hidden layer 3 size
+
+gridSize = length(L1) + length(L1)*length(L2) + ...
+    length(L1)*length(L2)*length(L3);
 
 hyperparameters = [];
-bestAccuracy = 0;
 
-gridSize = length(hiddenLayer1Size) + length(hiddenLayer1Size) * length(hiddenLayer2Size);
-count = 0;
-
-for i = 1:length(hiddenLayerDepth)
-    depth = hiddenLayerDepth(i);
-    for j = 1:length(hiddenLayer1Size)
-        if depth == 2
-            for k = 1:length(hiddenLayer2Size)
-                count = count + 1;
-                disp(['Training network ', num2str(count), ' of ', num2str(gridSize)]);
-                disp(['Hidden layer 1 size: ', num2str(hiddenLayer1Size(j)), ', Hidden layer 2 size: ', num2str(hiddenLayer2Size(k))]);
-                layers = [hiddenLayer1Size(j), hiddenLayer2Size(k)];
-                [net, tr] = trainnet(trainFeatures, trainTargets, layers);
-
-                % test the neural network
-                accuracy = testNet(net, testFeatures, testTargets);
-                if accuracy > bestAccuracy
-                    bestAccuracy = accuracy;
-                end
-                hyperparameters = [hyperparameters; hiddenLayer1Size(j), hiddenLayer2Size(k), depth, accuracy];
-            end
-        else
-            count = count + 1;
-            disp(['Training network ', num2str(count), ' of ', num2str(gridSize)]);
-            disp(['Hidden layer size: ', num2str(hiddenLayer1Size(j))]);
-            layers = [hiddenLayer1Size(j)];
-            [net, tr] = trainnet(trainFeatures, trainTargets, layers);
-
-            % test the neural network
-            accuracy = testNet(net, testFeatures, testTargets);
-            if accuracy > bestAccuracy
-                bestAccuracy = accuracy;
-            end
-            hyperparameters = [hyperparameters; hiddenLayer1Size(j), NaN, depth, accuracy];
-        end
-    end
+% grid search for hyperparameters
+disp('Starting grid search for hyperparameters');
+disp(['Grid size: ', num2str(length(L1))]);
+hyperParametersResults = zeros(length(L1), 5);
+parfor idx = 1:length(L1)
+    layers = [L1(idx)];
+    [net, tr] = trainNet(trainFeatures, trainTargets, layers);
+    accuracy = testNet(net, testFeatures, testTargets);
+    hyperparametersResults(idx, :) = [L1(idx), NaN, NaN, 1, accuracy];
 end
+hyperparameters = [hyperparameters; hyperparametersResults];
+disp('Finished 1 layer');
 
-function [net, tr] = trainnet(trainFeatures, trainTargets, layers)
+disp('Starting 2 layer');
+combosTwo = length(L1)*length(L2);
+disp(['Grid size: ', num2str(combosTwo)]);
+hyperParametersResults = zeros(combosTwo, 5);
+parfor idx = 1:combosTwo
+    [i, j] = ind2sub([length(L1),length(L2)], idx);
+    layers = [L1(i),L2(j)];
+    [net, tr] = trainNet(trainFeatures, trainTargets, layers);
+    accuracy = testNet(net, testFeatures, testTargets);
+    hyperparametersResults(idx, :) = [L1(i), L2(j), NaN, 2, accuracy];
+end
+hyperparameters = [hyperparameters; hyperparametersResults];
+disp('Finished 2 layer');
+
+disp('Starting 3 layer');
+combosThree = length(L1)*length(L2)*length(L3);
+disp(['Grid size: ', num2str(combosThree)]);
+hyperparametersResults = zeros(combosThree, 5);
+parfor idx = 1:combosThree
+    [i, j, k] = ind2sub([length(L1), ...
+        length(L2),length(L3)], idx);
+    layers = [L1(i),L2(j),L3(k)];
+    [net, tr] = trainNet(trainFeatures, trainTargets, layers);
+    accuracy = testNet(net, testFeatures, testTargets);
+    hyperparametersResults(idx, :) = [L1(i), L2(j), L3(k), 3, accuracy];
+end
+hyperparameters = [hyperparameters; hyperparametersResults];
+disp('Finished 3 layer');
+
+function [net, tr] = trainNet(trainFeatures, trainTargets, layers)
     net = patternnet(layers);
     net.divideParam.trainRatio = 85/100;
     net.divideParam.valRatio = 15/100;
@@ -138,13 +141,17 @@ accuracies = hyperparameters(:, end);
 [~, idx] = max(accuracies);
 
 bestHyperparameters = hyperparameters(idx, :);
-hiddenLayer1Size = bestHyperparameters(1);
-hiddenLayer2Size = bestHyperparameters(2);
-hiddenLayerDepth = bestHyperparameters(3);
+L1 = bestHyperparameters(1);
+L2 = bestHyperparameters(2);
+L3 = bestHyperparameters(3);
+LD = bestHyperparameters(4);
 
-layers = [hiddenLayer1Size, hiddenLayer2Size];
-if isnan(hiddenLayer2Size)
-    layers = hiddenLayer1Size;
+if isnan(L2)
+    layers = L1;
+elseif isnan(L3)
+    layers = [L1, L2];
+else
+    layers = [L1, L2, L3];
 end
 
 net = patternnet(layers);
