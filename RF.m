@@ -157,6 +157,8 @@ end
 save('rf_tree_hyperparameters.mat', 'hyperparameters');
 %% Best Hyperparameters
 % Find the best hyperparameters
+load rf_tree_hyperparameters.mat
+
 [~, idx] = max(hyperparameters.Accuracy);
 bestHyperparameters = hyperparameters(idx, :);
 numTrees = bestHyperparameters.NumTrees;
