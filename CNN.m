@@ -445,3 +445,53 @@ confusionchart(YTrue, YPred);
 title('Confusion Matrix for CNN');
 xlabel('Predicted Activity');
 ylabel('True Activity');
+
+%%
+% Plot the complete confusion matrix
+figure
+subplot(2, 2, 1);
+trainPred = minibatchpredict(net, trainImages);
+trainPred = onehotdecode(trainPred, classNames, 2);
+trainCm = confusionchart(trainLabels, trainPred);
+trainCm.RowSummary = 'row-normalized';
+trainCm.ColumnSummary = 'column-normalized';
+title('Train Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 2);
+valPred = minibatchpredict(net, valImages);
+valPred = onehotdecode(valPred, classNames, 2);
+valCm = confusionchart(valLabels, valPred);
+valCm.RowSummary = 'row-normalized';
+valCm.ColumnSummary = 'column-normalized';
+title('Validation Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 3);
+testCm = confusionchart(testLabels, YPred);
+testCm.RowSummary = 'row-normalized';
+testCm.ColumnSummary = 'column-normalized';
+title('Test Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 4);
+totalLabels = [trainLabels; valLabels; testLabels];
+totalPred = [trainPred; valPred; YPred];
+totalCm = confusionchart(totalLabels, totalPred);
+totalCm.RowSummary = 'row-normalized';
+totalCm.ColumnSummary = 'column-normalized';
+title('Total Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Display the Architecture
+fprintf('=== Architecture ===\n');
+disp(layers);
+
+% Display the classification error
+fprintf('\n=== Classification Metrics ===\n');
+fprintf('Accuracy: %.4f\n', accuracy);
+fprintf('Classification error: %.4f\n', 1/accuracy);

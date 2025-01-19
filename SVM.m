@@ -1,3 +1,18 @@
+%% Miscellaneous Setup
+% Clear the workspace
+clear;
+close all;
+clc;
+
+% Set the random seed for reproducibility
+rng(42);
+
+% Turn off LaTeX interpretation globally
+set(0, 'DefaultTextInterpreter', 'none')
+set(0, 'DefaultAxesTickLabelInterpreter', 'none')
+set(0, 'DefaultLegendInterpreter', 'none')
+set(0, 'DefaultColorbarTickLabelInterpreter', 'none')
+%%
 load preprocessed_with_features.mat
 
 allFeatures = [];
@@ -38,6 +53,9 @@ allFeatures(:, end) = [];
 trainFeatures = allFeatures(trainIdx, 1:end);
 trainTargets = allTargets(trainIdx, :);
 trainTargets = categorical(trainTargets);
+
+extraTrainFeatures = trainFeatures;
+extraTrainTargets = trainTargets;
 
 testFeatures = allFeatures(testIdx, 1:end);
 testTargets = allTargets(testIdx, :);
@@ -152,12 +170,25 @@ function model = createTemplateSVM(box, kernelFunction, order, standardiseData)
 end
 
 save('svm_hyperparameters.mat', 'hyperparameters');
+%% Further hyperparameter tuning
+opts = struct(...
+    'AcquisitionFunctionName', 'expected-improvement-plus', ...
+    'ShowPlots', true, ...
+    'Verbose', 1, ...
+    'UseParallel', true);
+
+% Train SVM with automatic hyperparameter optimization
+[model, optimisationResults] = fitcecoc(trainFeatures, trainTargets, ...
+    'OptimizeHyperparameters', 'auto', ...
+    'HyperparameterOptimizationOptions', opts);
+
 %%
 % Find the best hyperparameters
 load svm_hyperparameters.mat
 
-% get the row with the highest accuracy
-[~, idx] = max(hyperparameters.Accuracy);
+% get the rows with the highest accuracy
+accuracies = hyperparameters.Accuracy;
+[~, idx] = max(accuracies);
 bestHyperparameters = hyperparameters(idx, :);
 box = bestHyperparameters.BoxConstraint;
 kernelFunction = bestHyperparameters.KernelFunction;
@@ -178,6 +209,141 @@ svm = fitcecoc(trainFeatures, 'Activity', ...
 predictions = predict(svm, testFeatures);
 predictions = categorical(predictions);
 accuracy = sum(predictions == testTargets)/length(testTargets);
-fprintf("Accuracy: %.2f\n", accuracy);
-confusionchart(testTargets, predictions);
+fprintf("Accuracy: %.3f\n", accuracy);
+
+figure
+cm = confusionchart(testTargets, predictions);
+cm.RowSummary = 'row-normalized';
+cm.ColumnSummary = 'column-normalized';
+cm.Title = 'Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
 disp(svm.CodingMatrix)
+
+trainPred = predict(svm, trainFeatures);
+trainPred = categorical(trainPred);
+valPred = predict(svm, valFeatures);
+valPred = categorical(valPred);
+
+% Train and Validation Confusion
+figure
+subplot(1, 2, 1);
+trainCM = confusionchart(trainTargets, trainPred);
+trainCM.RowSummary = 'row-normalized';
+trainCM.Title = 'Training Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(1, 2, 2);
+valCM = confusionchart(valTargets, valPred);
+valCM.RowSummary = 'row-normalized';
+valCM.Title = 'Validation Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Complete Confusion Matrix
+figure
+% Training Confusion Matrix
+subplot(2, 2, 1);
+trainAccuracy = sum(trainPred == trainTargets)/length(trainTargets);
+trainCM = confusionchart(trainTargets, trainPred);
+trainCM.RowSummary = 'row-normalized';
+trainCM.ColumnSummary = 'column-normalized';
+trainCM.Title = 'Training Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Validation Confusion Matrix
+subplot(2, 2, 2);
+valAccuracy = sum(valPred == valTargets)/length(valTargets);
+valCM = confusionchart(valTargets, valPred);
+valCM.RowSummary = 'row-normalized';
+valCM.ColumnSummary = 'column-normalized';
+valCM.Title = 'Validation Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Test Confusion Matrix
+subplot(2, 2, 3);
+cm = confusionchart(testTargets, predictions);
+cm.RowSummary = 'row-normalized';
+cm.ColumnSummary = 'column-normalized';
+cm.Title = 'Test Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Total Confusion Matrix
+subplot(2, 2, 4);
+totalTargets = [trainTargets; valTargets; testTargets];
+totalPredictions = [trainPred; valPred; predictions];
+totalCM = confusionchart(totalTargets, totalPredictions);
+totalCM.RowSummary = 'row-normalized';
+totalCM.ColumnSummary = 'column-normalized';
+totalCM.Title = 'Total Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+% Display the best hyperparameters
+fprintf('\n=== Best Hyperparameters ===\n');
+fprintf('Box Constraint: %.4f\n', box);
+fprintf('Kernel Function: %s\n', kernelFunction);
+if ~isempty(order)
+    fprintf('Polynomial Order: %d\n', order);
+end
+fprintf('Coding: %s\n', coding);
+fprintf('Standardise Data: %s\n', standardiseData);
+fprintf('Accuracy: %.4f\n', accuracy * 100);
+fprintf('Best accuracy: %.4f\n', max(hyperparameters.Accuracy) * 100);
+fprintf('Grid size: %d\n', gridSize);
+
+% Display the classification error
+fprintf('\n=== Classification Metrics ===\n');
+fprintf('Classification error: %.4f\n', 1/accuracy);
+%% From Further Hyperparameter Tuning
+box = 950.68;
+kernelFunction = "linear";
+kernelScale = 262.9;
+coding = "onevsone";
+standardiseData = "on";
+
+model = templateSVM(...
+        'KernelFunction', kernelFunction, ...
+        'PolynomialOrder', [], ...
+        'KernelScale', kernelScale, ...
+        'BoxConstraint', box, ...
+        'Standardize', standardiseData);
+svm = fitcecoc(trainFeatures, 'Activity', ...
+    'Learners', model, ...
+    'Coding', coding, ...
+    'ClassNames', classNames);
+predictions = predict(svm, testFeatures);
+predictions = categorical(predictions);
+accuracy = sum(predictions == testTargets)/length(testTargets);
+fprintf("Accuracy: %.3f\n", accuracy);
+figure
+cm = confusionchart(testTargets, predictions);
+cm.RowSummary = 'row-normalized';
+cm.ColumnSummary = 'column-normalized';
+cm.Title = 'Confusion Matrix for SVM';
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+disp(svm.CodingMatrix)
+
+% Display the best hyperparameters
+fprintf('\n=== Best Hyperparameters ===\n');
+fprintf('Box Constraint: %.4f\n', box);
+fprintf('Kernel Function: %s\n', kernelFunction);
+if ~isempty(order)
+    fprintf('Polynomial Order: %d\n', order);
+end
+fprintf('Coding: %s\n', coding);
+fprintf('Standardise Data: %s\n', standardiseData);
+fprintf('Accuracy: %.4f\n', accuracy * 100);
+fprintf('Best accuracy: %.4f\n', max(hyperparameters.Accuracy) * 100);
+fprintf('Grid size: %d\n', gridSize);
+
+% Display the classification error
+fprintf('\n=== Classification Metrics ===\n');
+fprintf('Classification error: %.4f\n', 1/accuracy);

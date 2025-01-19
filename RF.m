@@ -181,6 +181,55 @@ figure
 cm = confusionchart(testTargets, predictions);
 cm.ColumnSummary = 'column-normalized';
 cm.RowSummary = 'row-normalized';
-title('Confusion Matrix for RF');
+title('Test Confusion Matrix for RF');
 xlabel('Predicted Activity');
 ylabel('True Activity');
+
+% Complete Confusion Matrix
+figure
+subplot(2, 2, 1);
+trainPred = predict(model, trainFeatures);
+trainCm = confusionchart(trainTargets, trainPred);
+% trainCm.ColumnSummary = 'column-normalized';
+% trainCm.RowSummary = 'row-normalized';
+title('Train Confusion Matrix for RF');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 2);
+valPred = predict(model, valFeatures);
+valCm = confusionchart(valTargets, valPred);
+% valCm.ColumnSummary = 'column-normalized';
+% valCm.RowSummary = 'row-normalized';
+title('Validation Confusion Matrix for RF');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 3);
+testCm = confusionchart(testTargets, predictions);
+% testCm.ColumnSummary = 'column-normalized';
+% testCm.RowSummary = 'row-normalized';
+title('Test Confusion Matrix for RF');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+
+subplot(2, 2, 4);
+totalTargets = [trainTargets; valTargets; testTargets];
+totalPredictions = [trainPred; valPred; predictions];
+totalCm = confusionchart(totalTargets, totalPredictions);
+% totalCm.ColumnSummary = 'column-normalized';
+% totalCm.RowSummary = 'row-normalized';
+title('Total Confusion Matrix for RF');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+%% Classification Metrics
+% Display the hyperparameters
+fprintf('=== Hyperparameters ===\n');
+fprintf('Number of Trees: %d\n', numTrees);
+fprintf('Max Number of Splits: %d\n', maxNumSplits);
+fprintf('Min Leaf Size: %d\n', minLeafSize);
+
+% Display the classification error
+fprintf('\n=== Classification Metrics ===\n');
+fprintf('Accuracy: %.4f\n', accuracy);
+fprintf('Classification error: %.4f\n', 1/accuracy);
