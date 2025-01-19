@@ -1,4 +1,4 @@
- load preprocessed_with_features.mat
+load preprocessed_with_features.mat
 
 allFeatures = [];
 
