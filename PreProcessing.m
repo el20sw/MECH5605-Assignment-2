@@ -86,7 +86,6 @@ end
 %%
 %[text] ## Handling NaN values
 %[text] Here, linear interpolation is used.
-%%
 for i = 1:length(dataStruct)
     rawData = dataStruct(i).CleanData;
     linear_fill = fillmissing(rawData, 'linear');
@@ -96,7 +95,6 @@ for i = 1:length(dataStruct)
 end
 %%
 %[text] ### Verifying that there are no NaN values in the files
-%%
 nan_found = false;
 for i = 1:length(dataStruct)
     data = dataStruct(i).CleanData;
@@ -131,8 +129,72 @@ for i = 1:length(dataStruct)
     dataStruct(i).CleanData(:, timestampCols) = [];
 end
 %%
+%[text] ## Each column for each body part needs to be 1 to 9
+%[text] The columns for each body part should be 1 to 9, if they aren't then we need to rename them
+for i = 1:length(dataStruct)
+    data = dataStruct(i).CleanData;
+    varNames = data.Properties.VariableNames;
+
+    bodyMap = containers.Map('KeyType', 'char', 'ValueType', 'any');
+
+    for c = 1:length(varNames)
+        colName = varNames{c};
+        % tokens = regexp(colName, '^(Thigh|Shank|Foot|Pelvis)_[L|R]?_(\d+)$', 'tokens', 'once');
+        tokens = regexp(colName, ...
+            '^(?<bp>(Thigh|Shank|Foot|Pelvis))(?:_?)(?<side>[LR])?_(?<num>\d+)', ...
+            'names');
+        if ~isempty(tokens)
+            if ~isempty(tokens.side)
+                location = sprintf('%s_%s', tokens.bp, tokens.side);
+            else
+                location = tokens.bp;
+            end
+            if isKey(bodyMap, location)
+                bodyMap(location) = [bodyMap(location) str2double(tokens.num)];
+            else
+                bodyMap(location) = str2double(tokens.num);
+            end
+        end
+
+        newVarNames = varNames;
+        bpKeys = keys(bodyMap);
+        for j = 1:length(bpKeys)
+            key = bpKeys{j};
+            nums = bodyMap(key);
+            if min(nums) > 1
+                % rename the columns such that they are 1 to 9
+                for k = 1:length(nums)
+                    oldName = sprintf('%s_%d', key, nums(k));
+                    newName = sprintf('%s_%d', key, k);
+                    newVarNames = strrep(newVarNames, oldName, newName);
+                end
+            end
+        end
+
+        dataStruct(i).CleanData.Properties.VariableNames = newVarNames;
+    end
+end
+
+%[text] ## Verifying the column names
+for i = 1:length(dataStruct)
+    data = dataStruct(i).CleanData;
+    varNames = data.Properties.VariableNames;
+    for c = 1:length(varNames)
+        colName = varNames{c};
+        tokens = regexp(colName, ...
+            '^(?<bp>(Thigh|Shank|Foot|Pelvis))(?:_?)(?<side>[LR])?_(?<num>\d+)', ...
+            'names');
+        if ~isempty(tokens)
+            num = str2double(tokens.num);
+            if num < 1 || num > 9
+                fprintf('DataStruct: %d\tInvalid column name: %s\n', i, colName);
+            end
+        end
+    end
+end
+%%
 %[text] ## Filtering the Data
-% Since typical gait data for normal walking has frequency components in the range of 0.5 to 3.5 Hz, 
+% Since typical gait data for normal walking has frequency components in the range of 0.5 to 3.5 Hz,
 % a 10-th order 𝐵𝑢𝑡𝑡𝑒𝑟𝑤𝑜𝑟𝑡ℎ bandpass filter was used to extract the required frequency components from the resultant vectors of the IMUs
 %%
 %[text] ### Moving average filter
