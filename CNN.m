@@ -177,7 +177,7 @@ tabulate(paddedLabels);
 %% Train/Test/Validation Splits
 % Split the data into training, validation and test sets
 [trainImages, trainLabels, valImages, valLabels, testImages, testLabels] = ...
-    splitData(reshapedImages, imageLabels, imageSubjects, 0.15);
+    splitData(reshapedPaddedImages, paddedLabels, paddedSubjects, 0.15);
 
 function [trainImages, trainLabels, valImages, valLabels, testImages, testLabels] = ...
     splitData(images, labels, subjects, valSplit)
@@ -218,9 +218,9 @@ end
 [trainImages, trainLabels] = balanceData(trainImages, trainLabels);
 
 function [balancedImages, balancedLabels] = balanceData(images, labels)
-    cats = categories(labels)
-    numCats = length(cats)
-    numSamplesPerCategory = countcats(labels)
+    cats = categories(labels);
+    numCats = length(cats);
+    numSamplesPerCategory = countcats(labels);
 
     minSamples = min(numSamplesPerCategory);
 
@@ -269,6 +269,143 @@ layers = [
     convolution2dLayer(3,32,Padding='same',Name='conv_3')
     batchNormalizationLayer(Name='bn_3')
     reluLayer(Name='relu_3')
+
+    fullyConnectedLayer(outputSize,Name='fc')
+    softmaxLayer(Name='softmax')
+];
+
+% Define the options for training
+options = trainingOptions('adam', ...
+    InitialLearnRate=0.001, ...
+    MaxEpochs=10, ...
+    MiniBatchSize=32, ...
+    ValidationData={valImages, valLabels}, ...
+    ValidationFrequency=30, ...
+    ValidationPatience=10, ...
+    LearnRateSchedule='piecewise', ...
+    LearnRateDropFactor=0.1, ...
+    LearnRateDropPeriod=20, ...
+    Shuffle='every-epoch', ...
+    Metrics=["accuracy","fscore","recall"], ...
+    ObjectiveMetricName="fscore", ...
+    Plots='training-progress', ...
+    Verbose=true);
+
+% Train the CNN
+net = trainnet(trainImages, trainLabels, layers, 'crossentropy', options);
+
+% Test the CNN
+classNames = categories(testLabels);
+
+YPred = minibatchpredict(net, testImages);
+YPred = onehotdecode(YPred, classNames, 2);
+YTrue = testLabels;
+accuracy = sum(YPred == YTrue) / numel(YTrue);
+fprintf('Accuracy: %.2f\n', accuracy);
+
+% Plot the confusion matrix
+figure
+cm = confusionchart(YTrue, YPred);
+cm.ColumnSummary = 'column-normalized';
+cm.RowSummary = 'row-normalized';
+title('Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+%% Define an Alternative CNN Architecture
+% Following: INPUT -> [CONV -> RELU -> CONV -> RELU -> POOL]*3 -> [FC -> RELU]*2 -> FC
+% from https://cs231n.github.io/convolutional-networks/#conv
+% note: we use the padded input for this architecture due to the 64x64 input size
+inputSize = [64, 64, 1];
+outputSize = numel(categories(trainLabels));
+
+layers = [
+    imageInputLayer(inputSize)
+
+    convolution2dLayer(3,16,Padding='same',Name='conv_1')
+    reluLayer(Name='relu_1')
+    convolution2dLayer(3,16,Padding='same',Name='conv_2')
+    reluLayer(Name='relu_2')
+    maxPooling2dLayer(2,Stride=2,Name='maxpool_1')
+
+    convolution2dLayer(3,32,Padding='same',Name='conv_3')
+    reluLayer(Name='relu_3')
+    convolution2dLayer(3,32,Padding='same',Name='conv_4')
+    reluLayer(Name='relu_4')
+    maxPooling2dLayer(2,Stride=2,Name='maxpool_2')
+
+    convolution2dLayer(3,64,Padding='same',Name='conv_5')
+    reluLayer(Name='relu_5')
+    convolution2dLayer(3,64,Padding='same',Name='conv_6')
+    reluLayer(Name='relu_6')
+    maxPooling2dLayer(2,Stride=2,Name='maxpool_3')
+
+    fullyConnectedLayer(128,Name='fc_1')
+    reluLayer(Name='relu_7')
+    fullyConnectedLayer(64,Name='fc_2')
+    reluLayer(Name='relu_8')
+
+    fullyConnectedLayer(outputSize,Name='fc_3')
+    softmaxLayer(Name='softmax')
+];
+
+% Define the options for training
+options = trainingOptions('adam', ...
+    InitialLearnRate=0.001, ...
+    MaxEpochs=10, ...
+    MiniBatchSize=32, ...
+    ValidationData={valImages, valLabels}, ...
+    ValidationFrequency=30, ...
+    ValidationPatience=10, ...
+    LearnRateSchedule='piecewise', ...
+    LearnRateDropFactor=0.1, ...
+    LearnRateDropPeriod=20, ...
+    Shuffle='every-epoch', ...
+    Metrics=["accuracy","fscore","recall"], ...
+    ObjectiveMetricName="fscore", ...
+    Plots='training-progress', ...
+    Verbose=true);
+
+% Train the CNN
+net = trainnet(trainImages, trainLabels, layers, 'crossentropy', options);
+
+% Test the CNN
+classNames = categories(testLabels);
+
+YPred = minibatchpredict(net, testImages);
+YPred = onehotdecode(YPred, classNames, 2);
+YTrue = testLabels;
+accuracy = sum(YPred == YTrue) / numel(YTrue);
+fprintf('Accuracy: %.2f\n', accuracy);
+
+% Plot the confusion matrix
+confusionchart(YTrue, YPred);
+title('Confusion Matrix for CNN');
+xlabel('Predicted Activity');
+ylabel('True Activity');
+%% Define a Deeper CNN Architecture
+% Following: https://dl.acm.org/doi/pdf/10.1145/3214277
+% C (1×3@32)→C (1×3@32)→C (1×3@32)→C (1×3@32)→P (1×2@64)→ C
+% (1×3@64)→C (1×3@64)→ C (1×3@64)→C (1×3@64)→P (1×5@64)→F
+inputSize = [64, 64, 1];
+outputSize = numel(categories(trainLabels));
+
+layers = [
+    imageInputLayer(inputSize)
+
+    convolution2dLayer(3,32,Padding='same',Name='conv_1')
+    convolution2dLayer(3,32,Padding='same',Name='conv_2')
+    convolution2dLayer(3,32,Padding='same',Name='conv_3')
+    reluLayer(Name='relu_1')
+
+    maxPooling2dLayer(3,Stride=2,Name='maxpool_1')
+
+    convolution2dLayer(2,64,Padding='same',Name='conv_4')
+    convolution2dLayer(3,64,Padding='same',Name='conv_5')
+    convolution2dLayer(3,64,Padding='same',Name='conv_6')
+    convolution2dLayer(3,64,Padding='same',Name='conv_7')
+    reluLayer(Name='relu_2')
+
+    maxPooling2dLayer(3,Stride=2,Name='maxpool_2')
 
     fullyConnectedLayer(outputSize,Name='fc')
     softmaxLayer(Name='softmax')
