@@ -157,14 +157,32 @@ net = patternnet(layers);
 net.divideParam.trainRatio = 85/100;
 net.divideParam.valRatio = 15/100;
 net.divideParam.testRatio = 0/100;
-net.trainParam.showWindow = 0;
+net.trainParam.showWindow = 1;
 [net, tr] = train(net, trainFeatures, trainTargets);
 
 % test the neural network
 predictedTargets = net(testFeatures);
 [c, cm] = confusion(testTargets, predictedTargets);
 accuracy = sum(diag(cm))/sum(cm(:));
-plotconfusion(testTargets, predictedTargets);
+% put the class names on the confusion matrix
+figure
+cm = confusionchart(cm, classNames');
+cm.RowSummary = 'row-normalized';
+cm.ColumnSummary = 'column-normalized';
+cm.Title = 'Confusion Matrix for ANN';
+xlabel('Predicted Activity');
+ylabel('True Activity');
 figure
 plotperform(tr);
 disp(accuracy);
+
+% Display the best hyperparameters
+fprintf('\n=== Best Hyperparameters ===\n');
+fprintf('Hidden layers: [%s]\n', strjoin(string(layers), ', '));
+fprintf('Accuracy: %.4f%%\n', accuracy * 100);
+fprintf('Best accuracy: %.4f%%\n', bestAccuracy * 100);
+fprintf('Grid size: %d\n', length(hyperparameters));
+
+% Display the classification error
+fprintf('\n=== Classification Metrics ===\n');
+fprintf('Classification error: %.4f\n', 1/accuracy);
