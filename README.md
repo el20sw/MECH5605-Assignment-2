@@ -4,6 +4,12 @@
 
 This repository contains the code for the second assignment of the course MECH5605M: Biomechatronics and Medical Robotics. The code is written in MATLAB.
 
+1. Running `PreProcessing.m` takes the raw IMU data and converts it into a form suitable for extracting features
+2. Running `FeatureExtraction.m` extracts features from the data using the sliding window technique for use in classification
+3. `ANN.m`, `SVM.m`, `CNN.m` and `RF.m` contain the implementations of the Artifical Neural Network, Support Vector Machine, Convolutional Neural Network, and Random Forest Ensemble respectively
+4. `FeatureSelection.m` runs various feature selection methods including MRMR and brute force ANN methods
+5. `SegmentSelection.m` finds the most significant segment through the use of multiple ANNs trained with the same hyperparameters to find the most significant segment
+
 ### Cloning the repository
 
 To clone the repository, use the following command in your terminal:
