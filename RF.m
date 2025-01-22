@@ -168,8 +168,9 @@ fprintf('Best Hyperparameters\n');
 disp(bestHyperparameters);
 %% Train the Model
 tTree = templateTree('MaxNumSplits', maxNumSplits, ...
-        'MinLeafSize', minLeafSize);
-    model = fitcensemble(trainFeatures,'Activity', ...
+        'MinLeafSize', minLeafSize, ...
+        'Surrogate', 'on');
+model = fitcensemble(trainFeatures,'Activity', ...
         'Method','AdaBoostM2', ...
         'Learners',tTree, ...
         'NumLearningCycles', numTrees);
@@ -233,3 +234,15 @@ fprintf('Min Leaf Size: %d\n', minLeafSize);
 fprintf('\n=== Classification Metrics ===\n');
 fprintf('Accuracy: %.4f\n', accuracy);
 fprintf('Classification error: %.4f\n', 1/accuracy);
+
+[impGain,predAssociation] = predictorImportance(model);
+
+figure
+imagesc(predAssociation)
+title('Predictor Association Estimates')
+colorbar
+h = gca;
+h.XTickLabel = model.PredictorNames;
+h.XTickLabelRotation = 45;
+h.TickLabelInterpreter = 'none';
+h.YTickLabel = model.PredictorNames;
